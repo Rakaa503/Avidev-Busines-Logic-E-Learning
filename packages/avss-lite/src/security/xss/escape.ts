@@ -1,0 +1,12 @@
+const HTML_ESCAPE_MAP: Record<string, string> = {
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&#39;",
+  "/": "&#x2F;",
+};
+
+export function escapeHtml(value: string): string {
+  return value.replace(/[&<>"'/]/g, (character) => HTML_ESCAPE_MAP[character]);
+}
