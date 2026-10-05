@@ -4,6 +4,8 @@ import { AppError } from "../../core/errors/app-error";
 
 import { UsersRepository } from "./users.repository";
 
+import type { User } from "@prisma/client";
+
 import type {
     CreateUserInput,
     UpdateUserInput,
@@ -26,9 +28,15 @@ export class UsersService {
                 limit
             );
 
-        const data = users.map(
-            ({ password, refreshToken, ...user }) => user
-        );
+        const data = users.map((user: User) => {
+            const {
+                password,
+                refreshToken,
+                ...safeUser
+            } = user;
+
+            return safeUser;
+        });
 
         return {
             data,

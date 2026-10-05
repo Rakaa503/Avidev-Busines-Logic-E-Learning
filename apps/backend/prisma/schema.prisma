@@ -18,6 +18,8 @@ model User {
   updatedAt    DateTime @updatedAt
 
   auditLogs    AuditLog[]
+  enrollments  Enrollment[]
+  progresses   Progress[]
 }
 
 model AuditLog {
@@ -40,4 +42,102 @@ model AuditLog {
   @@index([userId])
   @@index([createdAt])
   @@index([action])
+}
+
+model Course {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+  slug        String   @unique
+  isPublished Boolean  @default(false)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  lessons     Lesson[]
+  quizzes     Quiz[]
+  enrollments Enrollment[]
+}
+
+model Lesson {
+  id        Int      @id @default(autoincrement())
+  courseId  Int
+  title     String
+  content   String?
+  order     Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  course    Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  progresses Progress[]
+
+  @@index([courseId])
+  @@unique([courseId, order])
+}
+
+model Quiz {
+  id        Int      @id @default(autoincrement())
+  courseId  Int
+  title     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  course    Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  questions Question[]
+
+  @@index([courseId])
+}
+
+model Question {
+  id        Int      @id @default(autoincrement())
+  quizId    Int
+  question  String
+  order     Int
+
+  quiz      Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  answers   Answer[]
+
+  @@index([quizId])
+  @@unique([quizId, order])
+}
+
+model Answer {
+  id         Int      @id @default(autoincrement())
+  questionId Int
+  answer     String
+  isCorrect  Boolean  @default(false)
+
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+}
+
+model Enrollment {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  courseId  Int
+  enrolledAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+  @@index([userId])
+  @@index([courseId])
+}
+
+model Progress {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  lessonId    Int
+  isCompleted Boolean  @default(false)
+  completedAt DateTime?
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, lessonId])
+  @@index([userId])
+  @@index([lessonId])
 }

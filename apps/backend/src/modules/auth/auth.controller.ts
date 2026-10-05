@@ -1,169 +1,147 @@
-﻿import type { Context } from "hono";
-import { deleteCookie, getCookie, setCookie } from "hono/cookie";
+import type { Context } from "hono";
+import {
+    deleteCookie,
+    getCookie,
+    setCookie,
+} from "hono/cookie";
 
 import { AuthService } from "./auth.service";
 
 import {
-  ChangePasswordSchema,
-  LoginSchema,
-  RegisterSchema,
+    ChangePasswordSchema,
+    LoginSchema,
+    RegisterSchema,
 } from "./auth.schema";
 
 export class AuthController {
-  private readonly service = new AuthService();
+    private readonly service = new AuthService();
 
-  /**
-   * Register
-   */
-  async register(c: Context) {
-    const body = await c.req.json();
+    async register(c: Context) {
+        const body = await c.req.json();
 
-    console.log("====================================");
-    console.log("REGISTER REQUEST");
-    console.log("====================================");
-    console.log("[REGISTER] BODY:", body);
+        console.log("====================================");
+        console.log("REGISTER REQUEST");
+        console.log("====================================");
+        console.log("[REGISTER] BODY:", body);
 
-    const data = RegisterSchema.parse(body);
+        const data = RegisterSchema.parse(body);
 
-    const result = await this.service.register(data.username, data.password);
+        const result = await this.service.register(
+            data.username,
+            data.password,
+            data.role
+        );
 
-    setCookie(c, "refreshToken", result.refreshToken, {
-      httpOnly: true,
-      secure: false,
-      sameSite: "Lax",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7,
-    });
+        setCookie(c, "refreshToken", result.refreshToken, {
+            httpOnly: true,
+            secure: false,
+            sameSite: "Lax",
+            path: "/",
+            maxAge: 60 * 60 * 24 * 7,
+        });
 
-    console.log("REGISTER SUCCESS");
-    console.log("SET COOKIE:", c.res.headers.get("set-cookie"));
+        console.log("[REGISTER] ROLE:", result.user.role);
 
-    return c.json(
-      {
-        user: result.user,
-        accessToken: result.accessToken,
-      },
-      201,
-    );
-  }
-
-  /**
-   * Login
-   */
-  async login(c: Context) {
-    const body = await c.req.json();
-
-    console.log("====================================");
-    console.log("LOGIN REQUEST");
-    console.log("====================================");
-    console.log("[LOGIN] BODY:", body);
-
-    const data = LoginSchema.parse(body);
-
-    const result = await this.service.login(data.username, data.password);
-
-    setCookie(c, "refreshToken", result.refreshToken, {
-      httpOnly: true,
-      secure: false,
-      sameSite: "Lax",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7,
-    });
-
-    console.log("LOGIN SUCCESS");
-    console.log("SET COOKIE:", c.res.headers.get("set-cookie"));
-
-    return c.json({
-      user: result.user,
-      accessToken: result.accessToken,
-    });
-  }
-
-  /**
-   * Refresh Access Token
-   */
-  async refresh(c: Context) {
-    const refreshToken = getCookie(c, "refreshToken");
-
-    if (!refreshToken) {
-      return c.json(
-        {
-          success: false,
-          message: "Refresh token tidak ditemukan",
-        },
-        401,
-      );
+        return c.json(
+            {
+                user: result.user,
+                accessToken: result.accessToken,
+            },
+            201
+        );
     }
 
-    const result = await this.service.refresh(refreshToken);
+    async login(c: Context) {
+        const body = await c.req.json();
 
-    setCookie(c, "refreshToken", result.refreshToken, {
-      httpOnly: true,
-      secure: false,
-      sameSite: "Lax",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7,
-    });
+        const data = LoginSchema.parse(body);
 
-    return c.json({
-      success: true,
-      accessToken: result.accessToken,
-    });
-  }
+        const result = await this.service.login(
+            data.username,
+            data.password
+        );
 
-  /**
-   * Logout
-   */
-  async logout(c: Context) {
-    const user = c.get("user");
+        setCookie(c, "refreshToken", result.refreshToken, {
+            httpOnly: true,
+            secure: false,
+            sameSite: "Lax",
+            path: "/",
+            maxAge: 60 * 60 * 24 * 7,
+        });
 
-    await this.service.logout(user.id);
+        return c.json({
+            user: result.user,
+            accessToken: result.accessToken,
+        });
+    }
 
-    deleteCookie(c, "refreshToken", {
-      path: "/",
-    });
+    async refresh(c: Context) {
+        const refreshToken = getCookie(c, "refreshToken");
 
-    return c.json({
-      success: true,
-      message: "Logout berhasil",
-    });
-  }
+        if (!refreshToken) {
+            return c.json(
+                {
+                    success: false,
+                    message: "Refresh token tidak ditemukan",
+                },
+                401
+            );
+        }
 
-  /**
-   * Current User
-   */
-  async me(c: Context) {
-    const user = c.get("user");
+        const result = await this.service.refresh(refreshToken);
 
-    return c.json({
-      success: true,
-      user,
-    });
-  }
+        setCookie(c, "refreshToken", result.refreshToken, {
+            httpOnly: true,
+            secure: false,
+            sameSite: "Lax",
+            path: "/",
+            maxAge: 60 * 60 * 24 * 7,
+        });
 
-  /**
-   * Change Password
-   */
-  async changePassword(c: Context) {
-    const user = c.get("user");
+        return c.json({
+            accessToken: result.accessToken,
+        });
+    }
 
-    const body = await c.req.json();
+    async logout(c: Context) {
+        const user = c.get("user");
 
-    const data = ChangePasswordSchema.parse(body);
+        await this.service.logout(user.id);
 
-    const result = await this.service.changePassword(
-      user.id,
-      data.oldPassword,
-      data.newPassword,
-    );
+        deleteCookie(c, "refreshToken", {
+            path: "/",
+        });
 
-    deleteCookie(c, "refreshToken", {
-      path: "/",
-    });
+        return c.json({
+            success: true,
+            message: "Logout berhasil",
+        });
+    }
 
-    return c.json({
-      success: true,
-      message: result.message,
-    });
-  }
+    async me(c: Context) {
+        const user = c.get("user");
+
+        return c.json({
+            user,
+        });
+    }
+
+    async changePassword(c: Context) {
+        const user = c.get("user");
+
+        const body = await c.req.json();
+
+        const data = ChangePasswordSchema.parse(body);
+
+        await this.service.changePassword(
+            user.id,
+            data.oldPassword,
+            data.newPassword
+        );
+
+        return c.json({
+            success: true,
+            message: "Password berhasil diubah",
+        });
+    }
 }

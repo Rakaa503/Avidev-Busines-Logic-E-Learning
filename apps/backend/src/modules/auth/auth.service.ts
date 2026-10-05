@@ -13,12 +13,11 @@ export class AuthService {
 
     async register(
         username: string,
-        password: string
+        password: string,
+        role: "user" | "admin"
     ) {
         const exists =
-            await this.repository.findByUsername(
-                username
-            );
+            await this.repository.findByUsername(username);
 
         if (exists) {
             throw new AppError(
@@ -34,7 +33,7 @@ export class AuthService {
             await this.repository.create({
                 username,
                 password: hashedPassword,
-                role: "user",
+                role,
             });
 
         const accessToken =
@@ -72,13 +71,11 @@ export class AuthService {
         password: string
     ) {
         const user =
-            await this.repository.findByUsername(
-                username
-            );
+            await this.repository.findByUsername(username);
 
         if (!user) {
             throw new AppError(
-                "Username atau Password salah",
+                "Username atau password salah",
                 401
             );
         }
@@ -91,7 +88,7 @@ export class AuthService {
 
         if (!valid) {
             throw new AppError(
-                "Username atau Password salah",
+                "Username atau password salah",
                 401
             );
         }
@@ -126,44 +123,33 @@ export class AuthService {
         };
     }
 
-    async refresh(
-        refreshToken: string
-    ) {
-        let payload;
+    async refresh(refreshToken: string) {
+        const payload =
+            JWT.verifyRefreshToken(refreshToken);
 
-        try {
-            payload =
-                JWT.verifyRefreshToken(
-                    refreshToken
-                );
-        } catch {
+        const user =
+            await this.repository.findById(payload.id);
+
+        if (!user) {
+            throw new AppError(
+                "User tidak ditemukan",
+                401
+            );
+        }
+
+        if (user.refreshToken !== refreshToken) {
             throw new AppError(
                 "Refresh token tidak valid",
                 401
             );
         }
 
-        const user =
-            await this.repository.findById(
-                payload.id
-            );
-
-        if (!user) {
-            throw new AppError(
-                "User tidak ditemukan",
-                404
-            );
-        }
-
-        if (
-            user.refreshToken !==
-            refreshToken
-        ) {
-            throw new AppError(
-                "Refresh token sudah tidak berlaku",
-                401
-            );
-        }
+        const accessToken =
+            JWT.signAccessToken({
+                id: user.id,
+                username: user.username,
+                role: user.role,
+            });
 
         const newRefreshToken =
             JWT.signRefreshToken({
@@ -175,13 +161,6 @@ export class AuthService {
             newRefreshToken
         );
 
-        const accessToken =
-            JWT.signAccessToken({
-                id: user.id,
-                username: user.username,
-                role: user.role,
-            });
-
         return {
             accessToken,
             refreshToken: newRefreshToken,
@@ -189,13 +168,17 @@ export class AuthService {
     }
 
     async logout(id: number) {
-        await this.repository.deleteRefreshToken(
-            id
-        );
+        const user =
+            await this.repository.findById(id);
 
-        return {
-            message: "Logout berhasil",
-        };
+        if (!user) {
+            throw new AppError(
+                "User tidak ditemukan",
+                404
+            );
+        }
+
+        await this.repository.deleteRefreshToken(id);
     }
 
     async changePassword(
@@ -222,27 +205,16 @@ export class AuthService {
         if (!valid) {
             throw new AppError(
                 "Password lama salah",
-                401
+                400
             );
         }
 
         const hashedPassword =
-            await hashPassword(
-                newPassword
-            );
+            await hashPassword(newPassword);
 
         await this.repository.updatePassword(
             id,
             hashedPassword
         );
-
-        await this.repository.deleteRefreshToken(
-            id
-        );
-
-        return {
-            message:
-                "Password berhasil diubah",
-        };
     }
 }
